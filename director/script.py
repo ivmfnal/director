@@ -296,8 +296,6 @@ class SequentialGroup(Step):
                             self.ExitCode = step.ExitCode
                     if status != "ok":
                         self.Status = "killed"
-                else:
-                    step.cancel()
         t1 = time.time()
         if self.Status is None:
             self.Status = "ok"

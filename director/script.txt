@@ -1,0 +1,9 @@
+{
+        - concurrency 5
+        - env a=b
+        - env c=d
+ 
+        sleep 1; echo hello 1
+        echo hello 2
+        sleep 2; echo hello 3
+}

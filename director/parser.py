@@ -1,4 +1,4 @@
-import lark, pprint
+import pprint
 from lark import Tree
 import textwrap
 

@@ -1,9 +1,29 @@
-import sys, traceback, os, signal, time, textwrap
+import sys, traceback, os, signal, time, textwrap, json
 from pythreader import SubprocessAsync, Task, Primitive, synchronized, TaskQueue
+
+#
+# Dependencies
+#
 
 if sys.version_info[:2] < (3,11):
     print("Pytbon version 3.11 or later is required", file=sys.stderr)
     sys.exit(1)
+
+try:
+    import lark
+except ModuleNotFoundError:
+    import sys
+    print("lark library needs to be installed.\nPlease use 'pip install lark'.", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    import webpie
+except ModuleNotFoundError:
+    import sys
+    print("webpie library needs to be installed.\nPlease use 'pip install webpie'.", file=sys.stderr)
+    sys.exit(1)
+
+from webpie import HTTPServer, WPApp, WPHandler
 
 Usage = """
 python convery.py <script.yaml>
@@ -24,7 +44,6 @@ class Step(Primitive):
         self.StartT = self.EndT = self.Elapsed = None
         self.Level = level
         self.Indent = self.LevelIndent * level
-        self.Title = config.get("title")
         self.RunEnv = None
         self.ExitCode = 0
 
@@ -122,6 +141,14 @@ class Command(Step):
         self.Out = None
         self.Err = None
         
+    @synchronized
+    def dump_state(self):
+        status = self.Status if self.Status else (
+            "running" if self.Process is not None
+            else "pending"
+        )
+        return {"type":"command", "status":status, "title":self.Title}
+
     def update_run_env(self, outer):
         self.RunEnv = self.combine_env(outer)
 
@@ -204,6 +231,20 @@ class ParallelGroup(Step):
         self.Queue = TaskQueue(config.get("multiplicity", 5), delegate=self)
         self.Steps = steps
         self.ShotDown = False
+
+    @synchronized
+    def dump_state(self):
+        running = self.Queue.activeTasks()
+        running_steps = [task.Step for task in running]
+        steps = []
+        for step in self.Steps:
+            step_dump = step.dump_state()
+            if step in running_steps:
+                step_dump["status"] = "running"
+            elif step.Status is None:
+                step_dump["status"] = "pending"
+            steps.append(step_dump)
+        return {"type":"sequential", "status":self.Status, "title":self.Title, "steps":steps}
         
     def update_run_env(self, outer):
         self.RunEnv = self.combine_env(outer)
@@ -276,6 +317,18 @@ class SequentialGroup(Step):
         self.Title = self.Title or "sequential group #%04x" % (id(self) % 256,)
         self.Steps = steps
         self.RunningStep = None
+    
+    @synchronized
+    def dump_state(self):
+        steps = []
+        for step in self.Steps:
+            step_dump = step.dump_state()
+            if step is self.RunningStep:
+                step_dump["status"] = "running"
+            elif step.Status is None:
+                step_dump["status"] = "pending"
+            steps.append(step_dump)
+        return {"type":"sequential", "status":self.Status, "title":self.Title, "steps":steps}
 
     def update_run_env(self, outer):
         self.RunEnv = self.combine_env(outer)
@@ -313,30 +366,47 @@ class SequentialGroup(Step):
             self.Status = "killed"
             self.RunningStep = None
 
+class Script(WPApp):
 
-class Script(Step):
-
-    def __init__(self, text):
+    def __init__(self, text, port=8888):
         from parser import Parser, convert
         self.Tree = convert(Parser().parse(text))
+        
+        try:
+            from webpie import HTTPServer, WPApp, WPHandler
+            self.HTTPServer = HTTPServer(port, self)
+            WPApp.__init__(self, self.status_request)            
+        except ModuleNotFoundError:
+            print("Can not import webpie module. HTTP status server will not be running. Use 'pip install webpie' to enable the HTTP server.", file=sys.stderr)
+            self.HTTPServer = None
 
-    def _run(self, quiet):
+    def run(self, quiet):
         self.Tree.update_run_env(os.environ)
-        return self.Tree.run(quiet)
+        if self.HTTPServer is not None:
+            self.HTTPServer.start()
+        result = self.Tree.run(quiet)
+        if self.HTTPServer is not None:
+            self.HTTPServer.close()
+        return result
+
+    def status_request(self, request, relpath, **args):
+        info = self.Tree.dump_state()
+        return json.dumps(info), "text/json"
 
 
 def main():
     import getopt
 
-    opts, args = getopt.getopt(sys.argv[1:], "h?q", ["--help"])
+    opts, args = getopt.getopt(sys.argv[1:], "h?qp:", ["--help"])
     opts = dict(opts)
     if len(args) != 1 or "-?" in opts or "-h" in opts or "--help" in opts:
         print(Usage)
         sys.exit(2)
 
     quiet = "-q" in opts
-    script = Script(open(args[0], "r").read())
-    status = script.run()
+    port = int(opts.get("-p", 8888))
+    script = Script(open(args[0], "r").read(), port)
+    status = script.run(quiet)
     if status != "ok":
         sys.exit(1)
 

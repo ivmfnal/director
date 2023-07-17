@@ -1,5 +1,5 @@
 import pprint
-from lark import Tree
+from lark import Tree, Lark, Transformer
 import textwrap
 
 grammar = """
@@ -44,7 +44,7 @@ UNQUOTED_STRING : /[a-z0-9:%$@_^.%*?-]+/i
 
 """
 
-parser = lark.Lark(grammar, start="script")
+parser = Lark(grammar, start="script")
 
 
 class Node(object):
@@ -74,10 +74,10 @@ class Node(object):
     def pretty(self):
         return "\n".join(self.format())
 
-class Parser(lark.Transformer):
+class Parser(Transformer):
     
     def parse(self, text):
-        parsed = lark.Lark(grammar, start="script").parse(text)
+        parsed = Lark(grammar, start="script").parse(text)
         return self.transform(parsed)
 
     def sequential(self, args):

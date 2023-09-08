@@ -380,7 +380,7 @@ class Script(WPApp):
         
         try:
             from webpie import HTTPServer, WPApp, WPHandler
-            self.HTTPServer = HTTPServer(port, self)
+            self.HTTPServer = HTTPServer(port, self, daemon=True)
             WPApp.__init__(self, self.status_request)            
         except ModuleNotFoundError:
             print("Can not import webpie module. HTTP status server will not be running. Use 'pip install webpie' to enable the HTTP server.", file=sys.stderr)

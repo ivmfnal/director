@@ -1,6 +1,7 @@
 import sys, traceback, os, signal, time, textwrap, json
 from pythreader import Task, Primitive, synchronized, TaskQueue
 from subprocess import Popen
+import subprocess
 
 #
 # Dependencies

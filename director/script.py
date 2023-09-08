@@ -194,12 +194,12 @@ class Command(Step):
             if out:
                 self.log()
                 self.log("-- stdout: ------")
-                self.log(out)
+                self.log(self.Out)
                 self.log("-----------------")
             if err:
                 self.log()
                 self.log("-- stderr: ------")
-                self.log(err)
+                self.log(self.Err)
                 self.log("-----------------")
 
         return self.Status

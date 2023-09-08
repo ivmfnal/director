@@ -210,7 +210,7 @@ class Command(Step):
         if not self.Killed and self.Process is not None:
             #print("Command.kill()...")
             try:    
-                os.killpg(self.Process.pid)
+                os.killpg(self.Process.pid, signal.SIGINT)
                 self.Process.kill()
                 self.Process.communicate()
             except:

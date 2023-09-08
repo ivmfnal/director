@@ -29,7 +29,7 @@ env: "-" "env" CNAME "=" REST_OF_LINE NEWLINE
     
 CMD: /[a-zA-Z0-9.\/][^\r\n].*/x
 REST_OF_LINE: /[^\r\n].*/x
-COMMENT: ("#"|"//") /[^\n]*/ NEWLINE
+COMMENT: ("#"|"//") REST_OF_LINE NEWLINE
 
 %import common.CNAME
 %import common.INT

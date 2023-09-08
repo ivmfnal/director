@@ -173,8 +173,8 @@ class Command(Step):
                     self.log("started:", self.Title, "pid:", self.Process.pid, timestamp=True)
         out, err = self.Process.communicate()
         t1 = time.time()
-        self.Out = out
-        self.Err = err
+        self.Out = out.decode("utf-8")
+        self.Err = err.decode("utf-8")
         self.ExitCode = self.Process.returncode
         status = "ok"
         if self.is_killed:

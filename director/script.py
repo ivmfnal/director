@@ -415,11 +415,6 @@ def main():
     status = script.run(quiet)
     if status != "ok":
         sys.exit(1)
-        
-    import threading
-    for t in threading.enumerate():
-        print(t, t.__class__.__name__)
-
 
 if __name__ == "__main__":
     main()

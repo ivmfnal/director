@@ -1,5 +1,5 @@
 import sys, traceback, os, signal, time, textwrap, json
-from pythreader import SubprocessAsync, Task, Primitive, synchronized, TaskQueue
+from pythreader import Task, Primitive, synchronized, TaskQueue
 
 #
 # Dependencies
@@ -162,11 +162,14 @@ class Command(Step):
             if self.is_killed:
                 return self.Status
             else:
-                if not quiet:
-                    self.log("started:", self.Title, timestamp=True)
                 t0 = time.time()
-                self.Process = SubprocessAsync(self.Command, shell=True, env=self.RunEnv, process_group=0).start()
-        out, err = self.Process.wait()
+                self.Process = Popen(self.Command, shell=True,
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=self.RunEnv, process_group=0)
+                if not quiet:
+                    self.log("started:", self.Title, "pid:", self.Process.pid, timestamp=True)
+        out, err = self.Process.communicate()
         t1 = time.time()
         self.Out = out
         self.Err = err
@@ -205,8 +208,9 @@ class Command(Step):
         if not self.Killed and self.Process is not None:
             #print("Command.kill()...")
             try:    
-                self.Process.killpg()
+                os.killpg(self.Process.pid)
                 self.Process.kill()
+                self.Process.communicate()
             except:
                 #print("exception killing command:", self)
                 traceback.print_exc()

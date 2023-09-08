@@ -29,6 +29,7 @@ env: "-" "env" CNAME "=" REST_OF_LINE NEWLINE
     
 CMD: /[a-zA-Z0-9.\/][^\r\n].*/x
 REST_OF_LINE: /[^\r\n].*/x
+COMMENT: ("#"|"//") /[^\n]*/ NEWLINE
 
 %import common.CNAME
 %import common.INT
@@ -37,6 +38,7 @@ REST_OF_LINE: /[^\r\n].*/x
 %import common.WS
 %ignore WS_INLINE
 %ignore NEWLINE
+%ignore COMMENT
 
 STRING : /("(?!"").*?(?<!\\\\)(\\\\\\\\)*?"|'(?!'').*?(?<!\\\\)(\\\\\\\\)*?')/i
 UNQUOTED_STRING : /[a-z0-9:%$@_^.%*?-]+/i

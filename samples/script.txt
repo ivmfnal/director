@@ -1,0 +1,14 @@
+{       # comment
+        - concurrency = 5   
+        env aaa="hello world"        # comment   
+        env c=d 
+        
+        (   - title=Hello   
+            sleep 3; echo hello 1   # comment
+        )
+        
+        # comment
+        
+        echo hello 2        
+        sleep 5; echo hello 3
+}

@@ -1,6 +1,7 @@
 import pprint
 from lark import Tree, Lark, Transformer
 import textwrap
+from .groups import Command, ParallelGroup, SequentialGroup
 
 grammar = """
 ?script: step
@@ -8,13 +9,13 @@ grammar = """
 ?step:    command
     | parallel
     | sequential
-    | "(" step ")"
+    | "(" options? step ")"
     
 parallel: "{" options? steps "}"
 
 sequential: "[" options?  steps "]"
 
-command:  options? CMD
+command:  CMD
 
 ?steps : step+
 
@@ -23,13 +24,13 @@ options : option+
 ?option: env 
     | opt
 
-opt: "-" CNAME REST_OF_LINE NEWLINE
+opt: "-" CNAME "=" value 
 
-env: "-" "env" CNAME "=" REST_OF_LINE NEWLINE
-    
-CMD: /[a-zA-Z0-9.\/][^\r\n].*/x
-REST_OF_LINE: /[^\r\n].*/x
-COMMENT: ("#"|"//") REST_OF_LINE NEWLINE
+env: "env" CNAME "=" value 
+
+?value : (WORD|STRING)
+
+CMD: /[a-zA-Z0-9.\/][^\r\n\#]*/x
 
 %import common.CNAME
 %import common.INT
@@ -38,11 +39,14 @@ COMMENT: ("#"|"//") REST_OF_LINE NEWLINE
 %import common.WS
 %ignore WS_INLINE
 %ignore NEWLINE
+%ignore WS
+
+COMMENT.4: "#" /[^\r\n]+/x? NEWLINE
 %ignore COMMENT
 
-STRING : /("(?!"").*?(?<!\\\\)(\\\\\\\\)*?"|'(?!'').*?(?<!\\\\)(\\\\\\\\)*?')/i
+WORD.1 : /[^ ]+/
+STRING.2 : /("(?!"").*?(?<!\\\\)(\\\\\\\\)*?"|'(?!'').*?(?<!\\\\)(\\\\\\\\)*?')/i
 UNQUOTED_STRING : /[a-z0-9:%$@_^.%*?-]+/i
-
 
 """
 
@@ -58,6 +62,12 @@ class Node(object):
         
     def __getitem__(self, name):
         return self.Data[name]
+        
+    def __setitem__(self, name, value):
+        self.Data[name] = value
+        
+    def get(self, name, default=None):
+        return self.Data.get(name, default)
         
     def __str__(self):
         return f"Node(type={self.Type}, data: {self.Data})"
@@ -80,6 +90,7 @@ class Parser(Transformer):
     
     def parse(self, text):
         parsed = Lark(grammar, start="script").parse(text)
+        #print(parsed.pretty())
         return self.transform(parsed)
 
     def sequential(self, args):
@@ -117,12 +128,33 @@ class Parser(Transformer):
             cmd = args[0].value.strip()
         return Node("command", command=cmd, env=env, opts=opts)
     
+    def step(self, args):
+        #print("step: args:", args)
+        assert len(args) == 2 and args[0].Type == "options"
+        opts = args[0]["opts"].copy()
+        env = args[0]["env"].copy()
+        
+        opts.update(args[1].get("opts") or {})
+        env.update(args[1].get("env") or {})
+        args[1]["opts"] = opts
+        args[1]["env"] = env
+        return args[1]
+    
     def env(self, args):
-        name, value = args[0].value.strip(), args[1].value.strip()
+        #print("env: args:", args)
+        name = args[0].value.strip()
+        if args[1].type == "STRING":
+            value = args[1].value[1:-1]         # remove quotes
+        else:
+            value = args[1].value.strip()
         return Node("env", env={name:value})
     
     def opt(self, args):
-        name, value = args[0].value.strip(), args[1].value.strip()
+        name = args[0].value.strip()
+        if args[1].type == "STRING":
+            value = args[1].value[1:-1]         # remove quotes
+        else:
+            value = args[1].value.strip()
         return Node("opt", opt={name:value})
     
     def concurrency(self, args):
@@ -147,7 +179,6 @@ def convert(node, level=0):
     # Recursively converts the Node tree into Director tasks tree
     #
     
-    from script import Command, ParallelGroup, SequentialGroup
 
     if node.Type == "command":
         return Command(node["opts"] or {}, node["env"] or {}, level, node["command"])
@@ -157,5 +188,7 @@ def convert(node, level=0):
     elif node.Type == "sequential":
         tasks = [convert(t, level+1) for t in node.Children]
         return SequentialGroup(node["opts"] or {}, node["env"] or {}, level, tasks)
+    else:
+        raise ValueError("convert: unknown node type: " + node.Type)
 
         

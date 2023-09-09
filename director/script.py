@@ -171,7 +171,10 @@ class Command(Step):
                             env=self.RunEnv, process_group=0)
                 if not quiet:
                     self.log("started:", self.Title, "pid:", self.Process.pid, timestamp=True)
-        out, err = self.Process.communicate()
+        try:
+            out, err = self.Process.communicate()
+        except:
+            out = err = b""
         t1 = time.time()
         self.Out = out.decode("utf-8")
         self.Err = err.decode("utf-8")
